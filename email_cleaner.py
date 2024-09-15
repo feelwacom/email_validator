@@ -48,12 +48,18 @@ def has_mx_records(domain, retries=3, timeout=5):
             answers = resolver.resolve(domain, 'MX')
             if answers:
                 return True
-        except dns.resolver.NoAnswer:
-            return False
-        except dns.resolver.NXDOMAIN:
+        except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN):
             return False
         except dns.exception.Timeout:
             continue  # Retry on timeout
+        except dns.resolver.NoNameservers:
+            # Catch and handle the NoNameservers exception
+            print(f"Warning: No nameservers responded for domain {domain}. Skipping.")
+            return False
+        except Exception as e:
+            print(f"Unexpected error when querying domain {domain}: {str(e)}")
+            return False
+
     return False
 
 # Function to check if an email is from a disposable or blocked domain
