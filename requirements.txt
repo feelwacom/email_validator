@@ -1,6 +1,10 @@
-argparse==1.4.0
-termcolor==2.3.0     # Updated from 1.1.0 to 2.3.0
+chardet==4.0.0
+dnspython==2.6.1
+eventlet==0.37.0
+greenlet==3.1.0
+py3dns==4.0.2
 pyfiglet==0.8.post1
-chardet==5.1.0       # Updated from 4.0.0 to 5.1.0
-dnspython==2.4.2     # Added for DNS resolution functionality
-tqdm==4.65.0         # Added for progress bars
+setuptools==74.1.2
+termcolor==1.1.0
+tqdm==4.66.5
+validate-email-address==1
