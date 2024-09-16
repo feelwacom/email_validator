@@ -1,6 +1,9 @@
 
 # Email List Cleaner and Validator
 
+![image](https://github.com/user-attachments/assets/325e3d1b-3003-40a3-b5d7-37e51e29b3f3)
+
+
 This Python script validates, cleans, deduplicates, and exports email lists from a CSV file. It checks for syntactically valid emails, removes duplicates, verifies MX records for domains, and filters out disposable email domains using a custom blocklist provided in an external CSV file. The result is a cleaned list of valid emails and a separate list of invalid emails.
 
 ## Features
