@@ -80,25 +80,41 @@ trapmail.com
 4. Push to the branch (`git push origin feature/AmazingFeature`).
 5. Open a pull request.
 
-## Changelog
+# Changelog
 
-### v1.3.0 - (2024-09-16)
-- **Added**: Role-based email detection (e.g., admin@, support@).
-- **Added**: Dynamic detection of CSV file encoding using the chardet library for better handling of various encodings.
-- **Added**: Progress tracking with tqdm for monitoring email validation.
-- **Improved**: Duplicate email handling to optimize list processing and skip repeated entries.
-- **Improved**: Visual output of the cleaning process using pyfiglet ASCII art.
+## v1.3.1 - (2024-09-16)
+### Fixed
+- Fixed an issue with progress tracking for role-based email detection, ensuring the progress bar reaches 100%.
+- Corrected the handling of empty or malformed rows to avoid premature progress bar completion.
 
-### v1.2.0 - (2024-09-16)
-- **Added**: Integration of disposable email domain blocklist (`disposable_email_blocklist.csv`).
-- **Improved**: Code optimized for handling large files and blocklists.
-- **Fixed**: Error handling for domain validation and encoding issues.
+## v1.3.0 - (2024-09-16)
+### Added
+- Role-based email detection (e.g., `admin@`, `support@`).
+- Dynamic detection of CSV file encoding using the `chardet` library for better handling of various encodings.
+- Progress tracking with `tqdm` for monitoring email validation.
 
-### v1.1.0 - (2024-09-13)
-- **Added**: Support for loading a custom blocklist for disposable email domains.
-- **Improved**: Optimized email validation and export process.
+### Improved
+- Duplicate email handling to optimize list processing and skip repeated entries.
+- Visual output of the cleaning process using `pyfiglet` ASCII art.
 
-### v1.0.0 - (2024-09-11)
+## v1.2.0 - (2024-09-16)
+### Added
+- Integration of disposable email domain blocklist (`disposable_email_blocklist.csv`).
+
+### Improved
+- Code optimized for handling large files and blocklists.
+
+### Fixed
+- Error handling for domain validation and encoding issues.
+
+## v1.1.0 - (2024-09-13)
+### Added
+- Support for loading a custom blocklist for disposable email domains.
+
+### Improved
+- Optimized email validation and export process.
+
+## v1.0.0 - (2024-09-11)
 - Initial release.
 - Email syntax validation, MX record validation, duplicate removal.
 
