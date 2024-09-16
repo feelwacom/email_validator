@@ -9,7 +9,7 @@ import codecs
 import time
 import dns.resolver
 from tqdm import tqdm
-from termcolor import colored
+from termcolor import colored, cprint
 
 # Configure stdout to handle UTF-8 encoding
 sys.stdout.reconfigure(encoding='utf-8')
@@ -122,48 +122,74 @@ def clean_email_list(input_csv, blocklist_file, output_cleaned, output_invalid):
             if header:
                 writer_cleaned.writerow(header)
                 writer_invalid.writerow(header)
-                
-            start_time = time.time()
 
-            for row in tqdm(email_rows, desc="Validating Emails", unit="email"):
-                if not row:
-                    continue
-                email = row[email_index].lower()
+            # Step 1: Syntactic email validation
+            cprint("Step 1: Validating email formats", 'cyan')
+            with tqdm(total=total_emails, desc="Validating Email Formats", unit="email", colour='cyan') as pbar:
+                for row in email_rows:
+                    if not row:
+                        continue
+                    email = row[email_index].lower()
 
-                if email in seen_emails:
-                    duplicate_emails += 1
-                    continue
-                seen_emails.add(email)
+                    if email in seen_emails:
+                        duplicate_emails += 1
+                        continue
+                    seen_emails.add(email)
 
-                if is_valid_email(email):
-                    local_part, domain = email.split('@')
+                    if is_valid_email(email):
+                        pbar.update(1)
+                    else:
+                        invalid_emails += 1
+                        invalid_email_list.append(email)
+                        writer_invalid.writerow(row)
+
+            # Step 2: Blocklist and disposable email check
+            cprint("Step 2: Checking against blocklist", 'yellow')
+            with tqdm(total=total_emails, desc="Checking Blocklist", unit="email", colour='yellow') as pbar:
+                for row in email_rows:
+                    email = row[email_index].lower()
 
                     if is_blocked_or_disposable(email, blocklist):
                         blocklisted_emails += 1
                         invalid_emails += 1
                         invalid_email_list.append(email)
                         writer_invalid.writerow(row)
-                    elif is_role_based(email):
+                    else:
+                        pbar.update(1)
+
+            # Step 3: Role-based email check
+            cprint("Step 3: Checking for role-based emails", 'magenta')
+            with tqdm(total=total_emails, desc="Checking Role-Based Emails", unit="email", colour='magenta') as pbar:
+                for row in email_rows:
+                    email = row[email_index].lower()
+
+                    if is_role_based(email):
                         role_based_emails += 1
                         invalid_emails += 1
                         invalid_email_list.append(email)
                         writer_invalid.writerow(row)
-                    elif has_mx_records(domain):
+                    else:
+                        pbar.update(1)
+
+            # Step 4: MX record check
+            cprint("Step 4: Checking MX records", 'green')
+            with tqdm(total=total_emails, desc="Checking MX Records", unit="email", colour='green') as pbar:
+                for row in email_rows:
+                    email = row[email_index].lower()
+                    domain = email.split('@')[1].lower()
+
+                    if has_mx_records(domain):
                         valid_emails += 1
                         writer_cleaned.writerow(row)
                     else:
                         invalid_emails += 1
                         invalid_email_list.append(email)
                         writer_invalid.writerow(row)
-                else:
-                    invalid_emails += 1
-                    invalid_email_list.append(email)
-                    writer_invalid.writerow(row)
+                    pbar.update(1)
 
-    time_elapsed = time.time() - start_time
     ascii_cleaned = pyfiglet.figlet_format("Cleaned!")
     print(colored(f'{ascii_cleaned}', 'cyan'))
-    print(f'Total emails verified: {total_emails} in {time_elapsed:.2f} seconds.')
+    print(f'Total emails verified: {total_emails}.')
     print(colored(f'✅ Total valid emails: {valid_emails}. File saved to {output_cleaned}', 'green'))
     print(colored(f'❌ Total invalid emails: {invalid_emails}. File saved to {output_invalid}', 'red'))
     print(colored(f'🟡 Total duplicate emails: {duplicate_emails}', 'yellow'))
