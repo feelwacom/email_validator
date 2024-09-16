@@ -159,17 +159,27 @@ def clean_email_list(input_csv, blocklist_file, output_cleaned, output_invalid):
 
             # Step 3: Role-based email check
             cprint("Step 3: Checking for role-based emails", 'magenta')
+            actual_rows_processed = 0  # Debugging count
+
             with tqdm(total=total_emails, desc="Checking Role-Based Emails", unit="email", colour='magenta') as pbar:
                 for row in email_rows:
+                    if not row or len(row) <= email_index:  # Skip empty rows or rows with missing email column
+                        continue
+
                     email = row[email_index].lower()
+
+                    actual_rows_processed += 1  # Count only actual processed rows
 
                     if is_role_based(email):
                         role_based_emails += 1
                         invalid_emails += 1
                         invalid_email_list.append(email)
                         writer_invalid.writerow(row)
-                    else:
-                        pbar.update(1)
+                    
+                    pbar.update(1)
+
+            # After the loop, compare processed rows
+            print(f"Total emails: {total_emails}, Rows actually processed: {actual_rows_processed}")
 
             # Step 4: MX record check
             cprint("Step 4: Checking MX records", 'green')
