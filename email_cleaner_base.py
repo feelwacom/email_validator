@@ -10,7 +10,6 @@ import time
 import dns.resolver
 from tqdm import tqdm
 from termcolor import colored, cprint
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Configure stdout to handle UTF-8 encoding
 sys.stdout.reconfigure(encoding='utf-8')
@@ -56,17 +55,6 @@ def has_mx_records(domain, retries=3, timeout=5):
 
     return False
 
-# Function to check if domain has a valid DMARC record
-def has_dmarc_record(domain):
-    try:
-        txt_records = dns.resolver.resolve(f"_dmarc.{domain}", 'TXT')
-        for record in txt_records:
-            if 'v=DMARC1' in record.to_text():
-                return True
-    except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.exception.Timeout):
-        return False
-    return False
-
 # Function to check if an email is disposable or blocked
 def is_blocked_or_disposable(email, blocklist):
     domain = email.split('@')[1].lower()
@@ -76,15 +64,10 @@ def is_blocked_or_disposable(email, blocklist):
 def is_role_based(email):
     role_based_prefixes = ['admin', 'support', 'info', 'sales', 'help', 'billing']
     prefix = email.split('@')[0].lower()
-    return any(prefix == role or prefix.startswith(f'{role}_') for role in role_based_prefixes)
-
-# Function to perform SMTP check
-def smtp_check(email):
-    # Implement SMTP check logic here
-    return True  # Placeholder return value
+    return any(prefix.startswith(role) for role in role_based_prefixes)
 
 # Function to clean and deduplicate emails
-def clean_email_list(input_csv, blocklist_file, output_cleaned, output_invalid, smtp_check_enabled=False):
+def clean_email_list(input_csv, blocklist_file, output_cleaned, output_invalid):
     # Load blocklist for disposable/blocked emails
     blocklist = load_blocklist(blocklist_file) if blocklist_file else set()
 
@@ -214,41 +197,6 @@ def clean_email_list(input_csv, blocklist_file, output_cleaned, output_invalid, 
                         writer_invalid.writerow(row)
                     pbar.update(1)
 
-            # Step 5: DMARC record check
-            cprint("Step 5: Checking DMARC records", 'blue')
-            with tqdm(total=total_emails, desc="Checking DMARC Records", unit="email", colour='blue') as pbar:
-                for row in email_rows:
-                    email = row[email_index].lower()
-                    domain = email.split('@')[1].lower()
-
-                    if has_dmarc_record(domain):
-                        # Write to the cleaned file if needed
-                        # Currently, DMARC is not used for any decision making
-                        pbar.update(1)
-                    else:
-                        invalid_emails += 1
-                        invalid_email_list.append(email)
-                        writer_invalid.writerow(row)
-                    pbar.update(1)
-
-
-            if smtp_check_enabled:
-                # Step 6: SMTP check
-                cprint("Step 6: Checking SMTP mailboxes", 'red')
-                with ThreadPoolExecutor(max_workers=10) as executor:
-                    future_to_email = {executor.submit(smtp_check, row[email_index].lower()): row for row in email_rows}
-                    for future in as_completed(future_to_email):
-                        email = future_to_email[future][email_index].lower()
-                        try:
-                            is_valid = future.result()
-                            if not is_valid:
-                                invalid_emails += 1
-                                invalid_email_list.append(email)
-                                writer_invalid.writerow(future_to_email[future])
-                        except Exception as e:
-                            print(f"SMTP check error for {email}: {str(e)}")
-                        pbar.update(1)
-
     ascii_cleaned = pyfiglet.figlet_format("Cleaned!")
     print(colored(f'{ascii_cleaned}', 'cyan'))
     print(f'Total emails verified: {total_emails}.')
@@ -270,10 +218,9 @@ def main():
     parser.add_argument('--blocklist', default='/mnt/data/email_blocklist.csv', help='Path to the email blocklist file (optional).')
     parser.add_argument('--output_cleaned', default='cleaned_emails.csv', help='Output CSV file for valid emails.')
     parser.add_argument('--output_invalid', default='invalid_emails.csv', help='Output CSV file for invalid emails.')
-    parser.add_argument('--smtp_check', action='store_true', help='Enable SMTP verification for email addresses.')
     args = parser.parse_args()
 
-    clean_email_list(args.input_csv, args.blocklist, args.output_cleaned, args.output_invalid, args.smtp_check)
+    clean_email_list(args.input_csv, args.blocklist, args.output_cleaned, args.output_invalid)
 
 if __name__ == '__main__':
     main()
