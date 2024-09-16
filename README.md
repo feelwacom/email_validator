@@ -82,6 +82,13 @@ trapmail.com
 
 ## Changelog
 
+### v1.3.0 - (2024-09-16)
+- **Added**: Role-based email detection (e.g., admin@, support@).
+- **Added**: Dynamic detection of CSV file encoding using the chardet library for better handling of various encodings.
+- **Added**: Progress tracking with tqdm for monitoring email validation.
+- **Improved**: Duplicate email handling to optimize list processing and skip repeated entries.
+- **Improved**: Visual output of the cleaning process using pyfiglet ASCII art.
+
 ### v1.2.0 - (2024-09-16)
 - **Added**: Integration of disposable email domain blocklist (`disposable_email_blocklist.csv`).
 - **Improved**: Code optimized for handling large files and blocklists.

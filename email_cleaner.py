@@ -8,14 +8,13 @@ import chardet
 import codecs
 import time
 import dns.resolver
-import smtplib
 from tqdm import tqdm
 from termcolor import colored
 
 # Configure stdout to handle UTF-8 encoding
 sys.stdout.reconfigure(encoding='utf-8')
 
-# Function to load disposable email blocklist and spam trap emails from a file
+# Load blocklist function for disposable and blocked domains or emails
 def load_blocklist(filepath):
     if not os.path.exists(filepath):
         print(f"Blocklist file '{filepath}' not found. Proceeding without email blocklist.")
@@ -26,19 +25,14 @@ def load_blocklist(filepath):
     
     return domains_or_emails
 
-# Function to check if an email is syntactically valid
+# Function to check if an email is valid syntactically
 def is_valid_email(email):
     if not email:
         return False
-
     regex = r"^[a-zA-Z0-9_\-]+(\.[a-zA-Z0-9_\-]+)*@[a-zA-Z0-9_\-]+(\.[a-zA-Z0-9_\-]+)*(\.[a-zA-Z]{2,6})$"
-    
-    if ".@" in email:
-        return False
-
     return re.match(regex, email) is not None
 
-# Function to check if the domain has valid MX records
+# Function to check if domain has valid MX records
 def has_mx_records(domain, retries=3, timeout=5):
     resolver = dns.resolver.Resolver()
     resolver.timeout = timeout
@@ -54,55 +48,28 @@ def has_mx_records(domain, retries=3, timeout=5):
         except dns.exception.Timeout:
             continue  # Retry on timeout
         except dns.resolver.NoNameservers:
-            # Catch and handle the NoNameservers exception
-            print(f"Warning: No nameservers responded for domain {domain}. Skipping.")
             return False
         except Exception as e:
-            print(f"Unexpected error when querying domain {domain}: {str(e)}")
+            print(f"Error querying domain {domain}: {str(e)}")
             return False
 
     return False
 
-# Function to check if an email is from a disposable or blocked domain
+# Function to check if an email is disposable or blocked
 def is_blocked_or_disposable(email, blocklist):
     domain = email.split('@')[1].lower()
     return domain in blocklist or email in blocklist
 
-# Function to validate email via SMTP
-def smtp_validate_email(email, retries=3, timeout=5):
-    try:
-        domain = email.split('@')[1]
-        mx_records = dns.resolver.resolve(domain, 'MX')
-        mx_record = str(mx_records[0].exchange)
-        
-        # SMTP setup
-        server = smtplib.SMTP()
-        server.set_debuglevel(0)  # Enable for debug messages
-        server.connect(mx_record)
-        server.helo(server.local_hostname)
-        server.mail('chatest1019@gmail.com')  # Use a valid email here
-        code, message = server.rcpt(email)
-        server.quit()
+# Function to check if email is role-based
+def is_role_based(email):
+    role_based_prefixes = ['admin', 'support', 'info', 'sales', 'help', 'billing']
+    prefix = email.split('@')[0].lower()
+    return any(prefix.startswith(role) for role in role_based_prefixes)
 
-        if code == 250:
-            return True
-        return False
-    except Exception as e:
-        print(f"SMTP validation error: {str(e)}")
-        return False
-
-def main():
-    parser = argparse.ArgumentParser(description='Verify, clean, and deduplicate a list of emails in a CSV file.')
-    parser.add_argument('input_csv', help='Path to the input CSV file containing emails.')
-    parser.add_argument('--blocklist', default='/mnt/data/email_blocklist.csv', help='Path to the email blocklist file (optional).')
-    args = parser.parse_args()
-
-    input_csv = args.input_csv
-    output_csv_cleaned = os.path.splitext(input_csv)[0].rstrip('.csv') + '-cleaned.csv'
-    output_csv_invalid = os.path.splitext(input_csv)[0].rstrip('.csv') + '-invalid.csv'
-    
-    # Load the blocklist (disposable domains, blocked domains, and spam trap emails) from the provided file
-    blocklist = load_blocklist(args.blocklist) if args.blocklist else set()
+# Function to clean and deduplicate emails
+def clean_email_list(input_csv, blocklist_file, output_cleaned, output_invalid):
+    # Load blocklist for disposable/blocked emails
+    blocklist = load_blocklist(blocklist_file) if blocklist_file else set()
 
     with open(input_csv, 'rb') as f:
         result = chardet.detect(f.read())
@@ -111,6 +78,9 @@ def main():
     total_emails = 0
     valid_emails = 0
     invalid_emails = 0
+    duplicate_emails = 0
+    role_based_emails = 0
+    blocklisted_emails = 0
     invalid_email_list = []
     seen_emails = set()
 
@@ -143,8 +113,8 @@ def main():
         email_rows = list(reader)
         total_emails = len(email_rows)
 
-        with open(output_csv_cleaned, 'w', newline='') as output_cleaned_file, \
-                open(output_csv_invalid, 'w', newline='') as output_invalid_file:
+        with open(output_cleaned, 'w', newline='') as output_cleaned_file, \
+                open(output_invalid, 'w', newline='') as output_invalid_file:
 
             writer_cleaned = csv.writer(output_cleaned_file, dialect, quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
             writer_invalid = csv.writer(output_invalid_file, dialect, quoting=csv.QUOTE_NONNUMERIC, escapechar='\\')
@@ -161,6 +131,7 @@ def main():
                 email = row[email_index].lower()
 
                 if email in seen_emails:
+                    duplicate_emails += 1
                     continue
                 seen_emails.add(email)
 
@@ -168,17 +139,18 @@ def main():
                     local_part, domain = email.split('@')
 
                     if is_blocked_or_disposable(email, blocklist):
+                        blocklisted_emails += 1
+                        invalid_emails += 1
+                        invalid_email_list.append(email)
+                        writer_invalid.writerow(row)
+                    elif is_role_based(email):
+                        role_based_emails += 1
                         invalid_emails += 1
                         invalid_email_list.append(email)
                         writer_invalid.writerow(row)
                     elif has_mx_records(domain):
-                        if smtp_validate_email(email):
-                            valid_emails += 1
-                            writer_cleaned.writerow(row)
-                        else:
-                            invalid_emails += 1
-                            invalid_email_list.append(email)
-                            writer_invalid.writerow(row)
+                        valid_emails += 1
+                        writer_cleaned.writerow(row)
                     else:
                         invalid_emails += 1
                         invalid_email_list.append(email)
@@ -191,13 +163,28 @@ def main():
     time_elapsed = time.time() - start_time
     ascii_cleaned = pyfiglet.figlet_format("Cleaned!")
     print(colored(f'{ascii_cleaned}', 'cyan'))
-    print(colored(f'by Degun - https://github.com/degun-osint\n\n', 'cyan'))
-    print(f'➡️  Total emails verified: {total_emails} in {time_elapsed:.2f} seconds.\n')
-    print(colored(f'✅ Total valid emails: {valid_emails}. \n   File saved to {output_csv_cleaned}\n', 'green'))
-    print(colored(f'❌ Total invalid emails: {invalid_emails}. \n   File saved to {output_csv_invalid}\n', 'red'))
+    print(f'Total emails verified: {total_emails} in {time_elapsed:.2f} seconds.')
+    print(colored(f'✅ Total valid emails: {valid_emails}. File saved to {output_cleaned}', 'green'))
+    print(colored(f'❌ Total invalid emails: {invalid_emails}. File saved to {output_invalid}', 'red'))
+    print(colored(f'🟡 Total duplicate emails: {duplicate_emails}', 'yellow'))
+    print(colored(f'🟠 Total role-based emails: {role_based_emails}', 'yellow'))
+    print(colored(f'🔴 Total blocklisted emails: {blocklisted_emails}', 'yellow'))
+
+    # Print invalid email list
     print(colored(f'Invalid email list:', 'white', 'on_red'))
     for invalid_email in invalid_email_list:
         print(invalid_email)
+
+# Main function
+def main():
+    parser = argparse.ArgumentParser(description='Clean and validate an email list.')
+    parser.add_argument('input_csv', help='Path to the input CSV file containing emails.')
+    parser.add_argument('--blocklist', default='/mnt/data/email_blocklist.csv', help='Path to the email blocklist file (optional).')
+    parser.add_argument('--output_cleaned', default='cleaned_emails.csv', help='Output CSV file for valid emails.')
+    parser.add_argument('--output_invalid', default='invalid_emails.csv', help='Output CSV file for invalid emails.')
+    args = parser.parse_args()
+
+    clean_email_list(args.input_csv, args.blocklist, args.output_cleaned, args.output_invalid)
 
 if __name__ == '__main__':
     main()
