@@ -8,6 +8,7 @@ import chardet
 import codecs
 import time
 import dns.resolver
+import smtplib
 from tqdm import tqdm
 from termcolor import colored
 
@@ -66,6 +67,29 @@ def has_mx_records(domain, retries=3, timeout=5):
 def is_blocked_or_disposable(email, blocklist):
     domain = email.split('@')[1].lower()
     return domain in blocklist or email in blocklist
+
+# Function to validate email via SMTP
+def smtp_validate_email(email, retries=3, timeout=5):
+    try:
+        domain = email.split('@')[1]
+        mx_records = dns.resolver.resolve(domain, 'MX')
+        mx_record = str(mx_records[0].exchange)
+        
+        # SMTP setup
+        server = smtplib.SMTP()
+        server.set_debuglevel(0)  # Enable for debug messages
+        server.connect(mx_record)
+        server.helo(server.local_hostname)
+        server.mail('chatest1019@gmail.com')  # Use a valid email here
+        code, message = server.rcpt(email)
+        server.quit()
+
+        if code == 250:
+            return True
+        return False
+    except Exception as e:
+        print(f"SMTP validation error: {str(e)}")
+        return False
 
 def main():
     parser = argparse.ArgumentParser(description='Verify, clean, and deduplicate a list of emails in a CSV file.')
@@ -148,8 +172,13 @@ def main():
                         invalid_email_list.append(email)
                         writer_invalid.writerow(row)
                     elif has_mx_records(domain):
-                        valid_emails += 1
-                        writer_cleaned.writerow(row)
+                        if smtp_validate_email(email):
+                            valid_emails += 1
+                            writer_cleaned.writerow(row)
+                        else:
+                            invalid_emails += 1
+                            invalid_email_list.append(email)
+                            writer_invalid.writerow(row)
                     else:
                         invalid_emails += 1
                         invalid_email_list.append(email)
