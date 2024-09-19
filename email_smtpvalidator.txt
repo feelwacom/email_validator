@@ -1,0 +1,40 @@
+require 'truemail'
+
+# TrueMail configuration
+Truemail.configure do |config|
+  config.verifier_email = 'admincore@functionandrelation.com'
+  config.verifier_domain = 'zohomail.com'
+  config.connection_timeout = 2
+  config.response_timeout = 2
+  config.connection_attempts = 3
+  config.default_validation_type = :smtp
+  config.smtp_port = 587
+  config.smtp_fail_fast = true
+  config.smtp_safe_check = true
+  config.logger = { tracking_event: :all, stdout: true }
+end
+
+# File paths for output
+cleaned_emails_file = 'cleaned_emails.txt'
+uncleaned_emails_file = 'uncleaned_emails.txt'
+
+# Open files for writing cleaned and uncleaned emails
+File.open(cleaned_emails_file, 'w') do |cleaned|
+  File.open(uncleaned_emails_file, 'w') do |uncleaned|
+    # Read and validate emails from email.txt
+    File.foreach('email.txt') do |email|
+      email.strip!
+      result = Truemail.validate(email)
+
+      if result.result.success  # Accessing the result object correctly
+        cleaned.puts(email)  # Save valid email to cleaned file
+        puts "#{email}: valid"
+      else
+        uncleaned.puts(email)  # Save invalid email to uncleaned file
+        puts "#{email}: invalid"
+      end
+    end
+  end
+end
+
+puts "Emails have been separated into #{cleaned_emails_file} and #{uncleaned_emails_file}."
